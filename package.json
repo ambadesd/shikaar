@@ -1,0 +1,15 @@
+{
+  "name": "shikaar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A social-image discovery engine for product & purchase posts.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test test/*.test.js"
+  }
+}

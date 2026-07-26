@@ -1,0 +1,5 @@
+UPLOAD THE CONTENTS OF THIS FOLDER TO THE GITHUB REPOSITORY ROOT.
+Do not upload an extra outer shikaar/ folder.
+
+Before live use, obtain approved Reddit Data API access and configure OAuth in
+Vercel. Unauthenticated public JSON traffic is not a dependable deployment path.
