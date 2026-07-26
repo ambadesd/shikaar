@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shikaar — real-user product photos, hunted</title>
+<meta name="description" content="Type a phone, get a wall of real-user photos pulled live from the communities you choose. Text posts filtered out.">
+<meta name="theme-color" content="#141416">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+/* ============================================================
+   SHIKAAR — darkroom contact sheet
+   Ground: light-table graphite. Text: print paper.
+   One accent: chinagraph yellow (action + active).
+   One reserved colour: chinagraph blue (marked keepers).
+   ============================================================ */
+:root{
+  --ink:#141416;      /* page ground   */
+  --sleeve:#1B1B20;   /* panel ground  */
+  --sleeve-2:#232329; /* raised        */
+  --edge:#2E2E36;     /* hairline      */
+  --paper:#ECE8E1;    /* primary text  */
+  --mute:#8B8B95;     /* secondary     */
+  --chinagraph:#FFC400;
+  --blue:#57C7FF;
+  --alarm:#E8546B;
+
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"Space Grotesk",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+
+  --r:3px;            /* frames are square-ish. film isn't rounded. */
+  --gap:10px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom);
+  overflow-wrap:anywhere;
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--chinagraph);outline-offset:2px}
+
+/* ---------------- rig (sticky control head) ---------------- */
+.rig{
+  position:sticky;top:0;z-index:40;
+  background:linear-gradient(180deg,var(--ink) 78%,rgba(20,20,22,.92));
+  border-bottom:1px solid var(--edge);
+  padding:10px 14px 8px;
+  backdrop-filter:blur(8px);
+}
+.brand{display:flex;align-items:baseline;gap:9px;margin-bottom:10px}
+.brand h1{
+  font-family:var(--mono);
+  font-size:15px;font-weight:700;
+  letter-spacing:.42em;
+  margin:0;text-transform:uppercase;
+}
+.brand .dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--chinagraph);
+  align-self:center;flex:none;
+  box-shadow:0 0 0 3px rgba(255,196,0,.15);
+}
+.brand .tag{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--mute);
+}
+.brand .status{
+  margin-left:auto;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--mute);
+  white-space:nowrap;
+}
+.brand .status b{color:var(--chinagraph);font-weight:500}
+
+/* search */
+.hunt{display:flex;gap:8px}
+.hunt input{
+  flex:1;min-width:0;
+  background:var(--sleeve);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  padding:12px 13px;
+  font-size:16px;              /* 16px = no iOS zoom-on-focus */
+}
+.hunt input::placeholder{color:#5F5F69}
+.hunt input:focus{border-color:#4A4A55;outline:none}
+.hunt button{
+  background:var(--chinagraph);color:#191500;
+  font-family:var(--mono);font-weight:700;font-size:12px;
+  letter-spacing:.2em;text-transform:uppercase;
+  padding:0 18px;border-radius:var(--r);
+  flex:none;
+}
+.hunt button:active{transform:translateY(1px)}
+.hunt button[disabled]{opacity:.45;cursor:progress}
+
+/* the query we will actually run — shown, not hidden */
+.qline{
+  font-family:var(--mono);font-size:10.5px;color:var(--mute);
+  margin:7px 2px 0;min-height:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.qline b{color:#B9B4AA;font-weight:400}
+
+/* chips */
+.rail{
+  display:flex;gap:6px;overflow-x:auto;
+  margin:9px -14px 0;padding:0 14px 2px;
+  scrollbar-width:none;
+}
+.rail::-webkit-scrollbar{display:none}
+.chip{
+  font-family:var(--mono);font-size:11px;letter-spacing:.02em;
+  color:#B9B4AA;background:var(--sleeve);
+  border:1px solid var(--edge);border-radius:100px;
+  padding:5px 11px;white-space:nowrap;flex:none;
+}
+.chip[aria-pressed="true"]{
+  background:var(--chinagraph);border-color:var(--chinagraph);
+  color:#191500;font-weight:600;
+}
+.chip.group{color:var(--mute);border-style:dashed;pointer-events:none;background:none}
+
+/* control row */
+.ctl{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+.ctl-btn{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:#B9B4AA;
+  border:1px solid var(--edge);border-radius:var(--r);
+  padding:5px 9px;background:var(--sleeve);
+}
+.ctl-btn b{color:var(--chinagraph);font-weight:600}
+.ctl-btn[aria-pressed="true"]{border-color:#55555F;color:var(--paper)}
+.seg{display:flex;border:1px solid var(--edge);border-radius:var(--r);overflow:hidden}
+.seg button{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:5px 8px;color:var(--mute);
+  background:var(--sleeve);
+}
+.seg button[aria-pressed="true"]{background:var(--sleeve-2);color:var(--paper)}
+.seg button+button{border-left:1px solid var(--edge)}
+
+/* drawer */
+.drawer{
+  display:none;margin-top:10px;padding:12px;
+  background:var(--sleeve);border:1px solid var(--edge);border-radius:var(--r);
+}
+.drawer.open{display:block}
+.drawer h3{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--mute);
+  margin:0 0 8px;font-weight:500;
+}
+.drawer h3+.subs{margin-bottom:12px}
+.subs{display:flex;flex-wrap:wrap;gap:6px}
+.add{display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--edge)}
+.add input{
+  flex:1;min-width:0;background:var(--ink);
+  border:1px solid var(--edge);border-radius:var(--r);
+  padding:8px 10px;font-family:var(--mono);font-size:12px;
+}
+.add button{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;padding:0 12px;
+  border:1px solid var(--edge);border-radius:var(--r);color:#B9B4AA;
+}
+.note{font-family:var(--mono);font-size:10px;color:#63636D;margin-top:9px;line-height:1.5}
+
+/* ---------------- messages ---------------- */
+main{padding:12px 14px 60px}
+.banner{
+  display:none;gap:10px;align-items:flex-start;
+  border:1px solid var(--edge);border-left:2px solid var(--chinagraph);
+  background:var(--sleeve);border-radius:var(--r);
+  padding:11px 13px;margin-bottom:12px;
+  font-size:13px;color:#C9C4BB;line-height:1.5;
+}
+.banner.show{display:flex}
+.banner code{font-family:var(--mono);font-size:11.5px;color:var(--chinagraph)}
+.faults{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.fault{
+  font-family:var(--mono);font-size:10.5px;
+  border:1px solid rgba(232,84,107,.35);
+  color:var(--alarm);border-radius:100px;padding:4px 10px;
+}
+
+/* ---------------- the sheet ---------------- */
+.sheet{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  grid-auto-rows:4px;                 /* masonry unit */
+  gap:0 var(--gap);
+}
+@media(min-width:640px){.sheet{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1000px){.sheet{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:1440px){.sheet{grid-template-columns:repeat(5,1fr)}}
+
+.frame{
+  position:relative;
+  background:var(--sleeve);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  overflow:visible;
+  animation:rise .34s cubic-bezier(.2,.7,.3,1) backwards;
+}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}}
+
+/* stacked-frames edge: this post carries more photos behind the first */
+.frame.multi::before,.frame.multi::after{
+  content:"";position:absolute;top:5px;bottom:5px;
+  border:1px solid var(--edge);border-left:0;
+  border-radius:0 var(--r) var(--r) 0;
+  background:var(--sleeve);z-index:-1;
+}
+.frame.multi::before{right:-4px}
+.frame.multi::after{right:-8px;opacity:.55}
+
+.win{
+  position:relative;display:block;
+  background:#0E0E10;overflow:hidden;
+  border-radius:calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+}
+.win img{
+  display:block;width:100%;height:auto;
+  background:#0E0E10;
+}
+.win img.dead{min-height:120px;opacity:0}
+.dead-label{
+  position:absolute;inset:0;display:none;
+  align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:#4E4E58;
+}
+.win.broken .dead-label{display:flex}
+
+/* frame counter — tap to flick through the gallery in place */
+.flick{
+  position:absolute;left:6px;bottom:6px;
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.06em;
+  background:rgba(10,10,12,.82);
+  border:1px solid rgba(255,255,255,.14);
+  color:var(--paper);border-radius:100px;
+  padding:3px 8px;backdrop-filter:blur(4px);
+}
+.flick:active{background:var(--chinagraph);color:#191500}
+
+/* SIGNATURE: the chinagraph circle. Mark a keeper the way you would
+   on a real contact sheet — a wax pencil ring drawn round the frame. */
+.grease{
+  position:absolute;inset:-3px;width:calc(100% + 6px);height:calc(100% + 6px);
+  pointer-events:none;opacity:0;
+}
+.grease path{
+  fill:none;stroke:var(--blue);stroke-width:2.6;stroke-linecap:round;
+  vector-effect:non-scaling-stroke;
+  stroke-dasharray:640;stroke-dashoffset:640;
+}
+.frame.marked .grease{opacity:1}
+.frame.marked .grease path{
+  animation:draw .55s cubic-bezier(.35,.8,.4,1) forwards;
+}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+.strip{padding:8px 9px 7px}
+.strip .title{
+  display:block;font-size:12.5px;line-height:1.35;
+  text-decoration:none;color:var(--paper);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.strip .title:hover{color:var(--chinagraph)}
+.meta{
+  display:flex;flex-wrap:wrap;align-items:center;gap:7px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;
+  color:var(--mute);margin-top:6px;
+}
+.meta .sub{color:#B9B4AA}
+.acts{
+  display:flex;align-items:center;gap:6px;
+  margin-top:7px;padding-top:7px;border-top:1px solid var(--edge);
+}
+.acts button,.acts a{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--mute);
+  padding:3px 7px;border:1px solid var(--edge);border-radius:var(--r);
+  text-decoration:none;
+}
+.acts .open{margin-left:auto}
+.acts a:hover{color:var(--paper);border-color:#4A4A55}
+.frame.marked .acts .keep{color:var(--blue);border-color:rgba(87,199,255,.45)}
+
+/* ---------------- empty / loading ---------------- */
+.void{
+  text-align:center;padding:64px 20px;color:var(--mute);
+  grid-column:1/-1;grid-row:span 40;
+}
+.void .big{
+  font-family:var(--mono);font-size:12px;letter-spacing:.22em;
+  text-transform:uppercase;color:#B9B4AA;margin-bottom:9px;
+}
+.void p{max-width:34ch;margin:0 auto;font-size:13px;line-height:1.6}
+.ghost{
+  background:var(--sleeve);border:1px solid var(--edge);border-radius:var(--r);
+  animation:pulse 1.15s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.85}}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  .frame.marked .grease path{stroke-dashoffset:0}
+}
+</style>
+</head>
+<body>
+
+<header class="rig">
+  <div class="brand">
+    <span class="dot" aria-hidden="true"></span>
+    <h1>Shikaar</h1>
+    <span class="tag">contact sheet</span>
+    <span class="status" id="status">checking source</span>
+  </div>
+
+  <div class="hunt">
+    <input id="q" type="search" placeholder="iPhone 17 Pro Max"
+           autocomplete="off" autocapitalize="off" spellcheck="false"
+           aria-label="What are you hunting for">
+    <button id="go">Hunt</button>
+  </div>
+
+  <div class="qline" id="qline"></div>
+  <nav class="rail" id="presets" aria-label="Keyword presets"></nav>
+
+  <div class="ctl">
+    <button class="ctl-btn" id="pickerBtn" aria-expanded="false">
+      <b id="subCount">0</b> communities
+    </button>
+    <div class="seg" role="group" aria-label="Sort">
+      <button data-sort="new" aria-pressed="true">New</button>
+      <button data-sort="top" aria-pressed="false">Top</button>
+      <button data-sort="relevance" aria-pressed="false">Relevant</button>
+    </div>
+    <div class="seg" role="group" aria-label="Time range">
+      <button data-t="week" aria-pressed="false">Wk</button>
+      <button data-t="month" aria-pressed="true">Mo</button>
+      <button data-t="year" aria-pressed="false">Yr</button>
+      <button data-t="all" aria-pressed="false">All</button>
+    </div>
+    <button class="ctl-btn" id="galBtn" aria-pressed="false">2+ photos</button>
+    <button class="ctl-btn" id="markBtn" aria-pressed="false">Marked <b id="markCount">0</b></button>
+  </div>
+
+  <div class="drawer" id="picker">
+    <h3>India — purchase &amp; flex posts</h3>
+    <div class="subs" data-group="india"></div>
+    <h3>Global tech</h3>
+    <div class="subs" data-group="global"></div>
+    <h3>Buy / sell</h3>
+    <div class="subs" data-group="market"></div>
+    <div class="add">
+      <input id="addSub" placeholder="add any community, e.g. bangalore"
+             autocomplete="off" autocapitalize="off" spellcheck="false"
+             aria-label="Add a community by name">
+      <button id="addBtn">Add</button>
+    </div>
+    <p class="note">Communities marked with a dot are unverified — Appendix A says to
+      re-check activity at build. If one returns nothing, drop it.</p>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+  <div class="faults" id="faults"></div>
+  <section class="sheet" id="sheet" aria-live="polite"></section>
+</main>
+
+<script>
+/* ==================================================================
+   Shikaar frontend.
+   Holds no secrets. Talks to /api/search and nothing else (PRD §6.2).
+   ================================================================== */
+
+const API = '/api/search';
+
+/* ---- Appendix A: curated starter communities --------------------- */
+const COMMUNITIES = [
+  { name:'IndiaTech',        group:'india',  on:true,  why:'Largest Indian tech community' },
+  { name:'indiasocial',      group:'india',  on:true,  why:'Strong flex culture' },
+  { name:'IndianTeenagers',  group:'india',  on:true,  why:'Milestone "bought this at 19" posts' },
+  { name:'IndianGaming',     group:'india',  on:true,  why:'Gaming phones and setups' },
+  { name:'india',            group:'india',  on:false, why:'General; purchases surface often' },
+  { name:'developersIndia',  group:'india',  on:false, why:'First-salary posts', unsure:true },
+  { name:'iphoneindia',      group:'india',  on:false, why:'Indian iPhone buyers', unsure:true },
+  { name:'AndroidIndia',     group:'india',  on:false, why:'Indian Android buyers', unsure:true },
+  { name:'PhonesIndia',      group:'india',  on:false, why:'Phone purchases', unsure:true },
+  { name:'smartphones',      group:'global', on:false, why:'Global flagship discussion' },
+  { name:'Android',          group:'global', on:false, why:'Large Android community' },
+  { name:'apple',            group:'global', on:false, why:'iPhone launches' },
+  { name:'PickAnAndroidForMe',group:'global',on:false, why:'Buyers posting real units' },
+  { name:'hardwareswap',     group:'market', on:false, why:'Resale with condition photos' },
+  { name:'IndianGadgetMarket',group:'market',on:false, why:'Indian resale', unsure:true },
+];
+
+/* ---- Appendix B: keyword presets --------------------------------- */
+const PRESETS = [
+  { label:'purchase / flex', group:true },
+  'finally bought', 'finally got', 'finally mine', 'dream phone', 'worked hard for this',
+  { label:'milestone / gift', group:true },
+  'first salary', 'papa gifted', 'my parents gifted', 'bought this at',
+  { label:'lifecycle', group:true },
+  'unboxing', 'first impressions', 'new phone',
+  { label:'resale', group:true },
+  'selling', 'for sale',
+];
+
+/* ---- state ------------------------------------------------------- */
+const store = (() => {                    // localStorage where allowed, memory otherwise
+  const mem = {};
+  return {
+    get(k){ try{ return localStorage.getItem(k); }catch{ return mem[k] ?? null; } },
+    set(k,v){ try{ localStorage.setItem(k,v); }catch{ mem[k]=v; } },
+  };
+})();
+
+const S = {
+  subs: new Set(COMMUNITIES.filter(c=>c.on).map(c=>c.name)),
+  phrases: new Set(),
+  sort: 'new',
+  t: 'month',
+  galleries: false,
+  markedOnly: false,
+  results: [],
+  marked: new Map(),
+  live: null,          // null = unknown, true = backend reachable, false = demo
+  loading: false,
+};
+
+try { JSON.parse(store.get('shikaar.marked') || '[]').forEach(p => S.marked.set(p.id, p)); } catch {}
+
+const $ = s => document.querySelector(s);
+const el = (t,c) => { const n = document.createElement(t); if(c) n.className = c; return n; };
+
+/* ---- query composition ------------------------------------------- */
+/* Reddit search understands quoted phrases and OR. A preset therefore
+   becomes a real search clause, not just a string we paste in. */
+function buildQuery(){
+  const free = $('#q').value.trim();
+  const ph = [...S.phrases];
+  const clause = ph.length ? (ph.length === 1 ? `"${ph[0]}"` : `(${ph.map(p=>`"${p}"`).join(' OR ')})`) : '';
+  return [free, clause].filter(Boolean).join(' ');
+}
+
+function paintQueryLine(){
+  const q = buildQuery();
+  $('#qline').innerHTML = q
+    ? `runs <b>${esc(q)}</b> across ${S.subs.size} ${S.subs.size===1?'community':'communities'}`
+    : `no keyword — will pull the newest photo posts from ${S.subs.size} ${S.subs.size===1?'community':'communities'}`;
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---- chips ------------------------------------------------------- */
+function renderPresets(){
+  const rail = $('#presets');
+  rail.innerHTML = '';
+  for (const p of PRESETS){
+    if (p.group){
+      const g = el('span','chip group'); g.textContent = p.label; rail.append(g); continue;
+    }
+    const b = el('button','chip');
+    b.type = 'button'; b.textContent = p;
+    b.setAttribute('aria-pressed', S.phrases.has(p));
+    b.onclick = () => {
+      S.phrases.has(p) ? S.phrases.delete(p) : S.phrases.add(p);
+      b.setAttribute('aria-pressed', S.phrases.has(p));
+      paintQueryLine();
+    };
+    rail.append(b);
+  }
+}
+
+function renderPicker(){
+  for (const g of ['india','global','market']){
+    const box = document.querySelector(`.subs[data-group="${g}"]`);
+    box.innerHTML = '';
+    for (const c of COMMUNITIES.filter(x => x.group === g)){
+      const b = el('button','chip');
+      b.type = 'button';
+      b.textContent = (c.unsure ? '· ' : '') + 'r/' + c.name;
+      b.title = c.why || '';
+      b.setAttribute('aria-pressed', S.subs.has(c.name));
+      b.onclick = () => {
+        S.subs.has(c.name) ? S.subs.delete(c.name) : S.subs.add(c.name);
+        b.setAttribute('aria-pressed', S.subs.has(c.name));
+        $('#subCount').textContent = S.subs.size;
+        paintQueryLine();
+      };
+      box.append(b);
+    }
+  }
+  $('#subCount').textContent = S.subs.size;
+}
+
+/* ---- formatting -------------------------------------------------- */
+const fmtScore = n => n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1).replace('.0','') + 'k' : String(n);
+function fmtAge(sec){
+  const d = Date.now()/1000 - sec;
+  if (d < 3600) return Math.max(1, Math.round(d/60)) + 'm';
+  if (d < 86400) return Math.round(d/3600) + 'h';
+  if (d < 2592000) return Math.round(d/86400) + 'd';
+  if (d < 31536000) return Math.round(d/2592000) + 'mo';
+  return Math.round(d/31536000) + 'y';
+}
+
+/* ---- the sheet --------------------------------------------------- */
+const sheet = $('#sheet');
+
+function card(post){
+  const f = el('article','frame');
+  if (post.count > 1) f.classList.add('multi');
+  if (S.marked.has(post.id)) f.classList.add('marked');
+  f.dataset.id = post.id;
+
+  const win = el('div','win');
+  const img = el('img');
+  img.loading = 'lazy'; img.decoding = 'async';
+  img.referrerPolicy = 'no-referrer';        // §8: some hosts block referred hotlinks
+  img.alt = post.title;
+  img.src = post.thumb;
+  if (post.ratio) img.style.aspectRatio = `1 / ${post.ratio}`;
+
+  const dead = el('div','dead-label');
+  dead.textContent = 'image expired';
+  img.onerror = () => { win.classList.add('broken'); img.classList.add('dead'); relayout(); };
+  img.onload  = () => { img.style.aspectRatio = ''; relayout(); };
+  win.append(img, dead);
+
+  if (post.count > 1){
+    let i = 0;
+    const flick = el('button','flick');
+    flick.type = 'button';
+    flick.textContent = `1/${post.count}`;
+    flick.setAttribute('aria-label', `Show next of ${post.count} photos`);
+    flick.onclick = e => {
+      e.preventDefault();
+      i = (i + 1) % post.count;
+      win.classList.remove('broken');
+      img.classList.remove('dead');
+      img.src = post.images[i];
+      flick.textContent = `${i+1}/${post.count}`;
+    };
+    win.append(flick);
+  }
+
+  const grease = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  grease.setAttribute('class','grease');
+  grease.setAttribute('viewBox','0 0 200 120');
+  grease.setAttribute('preserveAspectRatio','none');
+  grease.setAttribute('aria-hidden','true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d','M14 62 C 8 24, 44 7, 96 6 C 152 5, 191 22, 193 60 C 195 98, 156 115, 100 114 C 44 113, 17 97, 15 58');
+  grease.append(path);
+  f.append(win, grease);
+
+  const strip = el('div','strip');
+  const a = el('a','title');
+  a.href = post.link; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  a.textContent = post.title;
+  strip.append(a);
+
+  const meta = el('div','meta');
+  const sub = el('span','sub'); sub.textContent = 'r/' + post.subreddit;
+  const sc = el('span'); sc.textContent = '▲ ' + fmtScore(post.score);
+  const ag = el('span'); ag.textContent = fmtAge(post.created);
+  meta.append(sub, sc, ag);
+  if (post.count > 1){ const g = el('span'); g.textContent = post.count + ' frames'; meta.append(g); }
+  strip.append(meta);
+
+  const acts = el('div','acts');
+  const keep = el('button','keep');
+  keep.type = 'button';
+  keep.textContent = S.marked.has(post.id) ? 'Marked' : 'Mark';
+  keep.onclick = () => {
+    if (S.marked.has(post.id)){ S.marked.delete(post.id); f.classList.remove('marked'); keep.textContent = 'Mark'; }
+    else { S.marked.set(post.id, post); f.classList.add('marked'); keep.textContent = 'Marked'; }
+    $('#markCount').textContent = S.marked.size;
+    store.set('shikaar.marked', JSON.stringify([...S.marked.values()]));
+    if (S.markedOnly) paint();
+  };
+  const open = el('a','open');
+  open.href = post.link; open.target = '_blank'; open.rel = 'noopener noreferrer';
+  open.textContent = 'Open ↗';
+  acts.append(keep, open);
+  strip.append(acts);
+
+  f.append(strip);
+  return f;
+}
+
+/* True masonry: measure each frame, then claim the rows it needs. */
+function relayout(){
+  const rows = 4, gap = 10;
+  for (const f of sheet.children){
+    if (!f.classList.contains('frame')) continue;
+    f.style.gridRowEnd = 'span ' + Math.ceil((f.getBoundingClientRect().height + gap) / (rows + gap));
+  }
+}
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(relayout, 120); });
+
+function paint(){
+  sheet.innerHTML = '';
+
+  if (S.loading){
+    for (let i = 0; i < 8; i++){
+      const g = el('div','ghost');
+      g.style.gridRowEnd = 'span ' + (34 + (i * 7) % 22);
+      sheet.append(g);
+    }
+    return;
+  }
+
+  const list = S.markedOnly ? [...S.marked.values()] : S.results;
+
+  if (!list.length){
+    const v = el('div','void');
+    v.innerHTML = S.markedOnly
+      ? `<div class="big">Nothing marked</div><p>Circle a frame with <em>Mark</em> and it lands here. Marked frames survive a reload.</p>`
+      : `<div class="big">Sheet is empty</div><p>Type a phone, or just tap a preset like <em>finally bought</em>, then hit Hunt.</p>`;
+    sheet.append(v);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  list.forEach((p, i) => {
+    const c = card(p);
+    c.style.animationDelay = Math.min(i * 18, 400) + 'ms';
+    frag.append(c);
+  });
+  sheet.append(frag);
+  requestAnimationFrame(relayout);
+  setTimeout(relayout, 400);
+}
+
+/* ---- messages ---------------------------------------------------- */
+function banner(html){
+  const b = $('#banner');
+  if (!html){ b.classList.remove('show'); b.innerHTML = ''; return; }
+  b.innerHTML = html; b.classList.add('show');
+}
+
+function faults(errs){
+  const box = $('#faults');
+  box.innerHTML = '';
+  for (const e of errs || []){                 // FR-11: report, don't fail
+    const c = el('span','fault');
+    c.textContent = `r/${e.sub} — ${e.message}`;
+    box.append(c);
+  }
+}
+
+/* ---- the hunt ---------------------------------------------------- */
+async function hunt(){
+  if (!S.subs.size){ banner('Pick at least one community first.'); return; }
+
+  S.loading = true; S.markedOnly = false;
+  $('#markBtn').setAttribute('aria-pressed','false');
+  $('#go').disabled = true;
+  faults([]); paint();
+
+  const params = new URLSearchParams({
+    source: 'reddit',
+    sub: [...S.subs].join(','),
+    q: buildQuery(),
+    sort: S.sort,
+    t: S.t,
+    limit: '60',
+    galleries: S.galleries ? '1' : '0',
+  });
+
+  try {
+    const res = await fetch(`${API}?${params}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Search failed');
+
+    S.live = true;
+    S.results = data.results;
+    faults(data.errors);
+    banner(data.results.length ? '' :
+      `Nothing came back. Widen the time range, drop the 2+ photos filter, or try a shorter keyword.`);
+    setStatus(`<b>live</b> · ${data.mode} · ${data.results.length} frames`);
+  } catch (err) {
+    /* No backend reachable — show the demo sheet so the UI is still
+       judgeable, and say plainly why it isn't live. */
+    S.live = false;
+    S.results = demoSheet();
+    faults([]);
+    banner(
+      `<div><strong>Demo sheet.</strong> The backend isn't answering, so these are
+       placeholder frames. Run <code>node server.js</code> or deploy to Vercel and
+       this same page pulls live Reddit results — nothing else changes.</div>`
+    );
+    setStatus('<b>demo</b> · no backend');
+  } finally {
+    S.loading = false;
+    $('#go').disabled = false;
+    paint();
+  }
+}
+
+function setStatus(html){ $('#status').innerHTML = html; }
+
+/* ---- demo frames -------------------------------------------------
+   Drawn as SVG, not fetched, so the sheet renders even with no network
+   and nobody mistakes a placeholder for a real user's photo.          */
+function scene(i){
+  const beds = ['#2B3038','#33302B','#2A3230','#302B33','#37302E','#2E3138'];
+  const bed  = beds[i % beds.length];
+  const surf = ['#3C424C','#47423B','#3A4442','#413B45','#4A413E','#3F434C'][i % 6];
+  const body = ['#15171C','#1A1614','#141A18','#181419'][i % 4];
+  const glow = ['#5B6B7E','#7E6B5B','#5B7E6E','#6E5B7E'][i % 4];
+  const w = 400, h = [520, 400, 460, 340, 500, 420][i % 6];
+  const shapes = [
+    `<rect x="118" y="${h*0.28}" width="164" height="${h*0.5}" rx="18" fill="${body}"/>
+     <rect x="132" y="${h*0.30}" width="136" height="${h*0.44}" rx="12" fill="${glow}" opacity=".28"/>
+     <rect x="150" y="${h*0.31}" width="54" height="42" rx="12" fill="#0C0D10"/>
+     <circle cx="168" cy="${h*0.335}" r="9" fill="#232830"/><circle cx="190" cy="${h*0.335}" r="9" fill="#232830"/>`,
+    `<rect x="70" y="${h*0.40}" width="260" height="${h*0.34}" rx="8" fill="${surf}"/>
+     <rect x="70" y="${h*0.34}" width="260" height="34" rx="6" fill="${body}" opacity=".85"/>
+     <rect x="146" y="${h*0.44}" width="108" height="${h*0.26}" rx="12" fill="${body}"/>
+     <rect x="158" y="${h*0.455}" width="84" height="${h*0.22}" rx="8" fill="${glow}" opacity=".3"/>`,
+    `<path d="M110 ${h} L134 ${h*0.52} Q200 ${h*0.42} 266 ${h*0.52} L290 ${h} Z" fill="${surf}"/>
+     <rect x="152" y="${h*0.22} " width="96" height="${h*0.36}" rx="14" fill="${body}"/>
+     <rect x="162" y="${h*0.235}" width="76" height="${h*0.30}" rx="9" fill="${glow}" opacity=".33"/>`,
+    `<rect x="0" y="${h*0.66}" width="${w}" height="${h*0.34}" fill="${surf}"/>
+     <rect x="84" y="${h*0.30}" width="104" height="${h*0.42}" rx="14" fill="${body}"/>
+     <rect x="212" y="${h*0.30}" width="104" height="${h*0.42}" rx="14" fill="${body}" opacity=".9"/>
+     <rect x="96" y="${h*0.315}" width="80" height="${h*0.36}" rx="9" fill="${glow}" opacity=".3"/>`,
+  ][i % 4];
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
+      <rect width="${w}" height="${h}" fill="${bed}"/>
+      <circle cx="${w*0.78}" cy="${h*0.16}" r="${h*0.3}" fill="${glow}" opacity=".13"/>
+      ${shapes}
+    </svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg.replace(/\s+/g,' '));
+}
+
+function demoSheet(){
+  const rows = [
+    ['Finally bought the iPhone 17 Pro Max with my first salary 🥹','IndiaTech',3,2140,4],
+    ['Papa gifted me this on my 18th birthday. Still cannot believe it','IndianTeenagers',5,4820,26],
+    ['Galaxy S25 Ultra — three weeks in, the camera is unreal','IndiaTech',4,912,52],
+    ['Unboxing my OnePlus 13, Indian variant','indiasocial',6,388,9],
+    ['Worked two years for this. Dream phone, finally mine','indiasocial',2,1560,73],
+    ['Bought this at 19 with freelance money','IndianTeenagers',1,2705,120],
+    ['Selling: iPhone 15 Pro, 92% battery, box and bill','IndianGadgetMarket',7,64,15],
+    ['My parents gifted me a Pixel 10 Pro for clearing my exams','india',3,3310,190],
+    ['First impressions: Nothing Phone 3 in the wild','IndiaTech',4,731,33],
+    ['Finally got the titanium blue one after 3 months of waiting','indiasocial',2,1180,61],
+    ['New gaming phone for the setup — ROG Phone 9','IndianGaming',5,540,8],
+    ['Traded my old one up. Small upgrade, big feeling','IndiaTech',1,297,44],
+    ['First salary, first flagship. Mom cried a little','IndianTeenagers',3,6120,300],
+    ['Condition photos for the sale — no scratches on the back','IndianGadgetMarket',6,41,20],
+  ];
+  const now = Date.now()/1000;
+  return rows.map(([title, sub, count, score, hoursAgo], i) => ({
+    id: 'demo_' + i,
+    title, subreddit: sub, source: 'reddit:' + sub,
+    thumb: scene(i),
+    images: Array.from({length: count}, (_,k) => scene(i + k * 3)),
+    count, score,
+    created: now - hoursAgo * 3600,
+    ratio: null,
+    link: 'https://www.reddit.com/r/' + sub + '/',
+  })).filter(p => !S.galleries || p.count > 1);
+}
+
+/* ---- wiring ------------------------------------------------------ */
+$('#go').onclick = hunt;
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') hunt(); });   // FR-1
+$('#q').addEventListener('input', paintQueryLine);
+
+$('#pickerBtn').onclick = () => {
+  const open = $('#picker').classList.toggle('open');
+  $('#pickerBtn').setAttribute('aria-expanded', open);
+};
+
+$('#addBtn').onclick = () => {
+  const v = $('#addSub').value.trim().replace(/^\/?r\//i,'');
+  if (!/^[A-Za-z0-9_]{2,25}$/.test(v)){ $('#addSub').value = ''; return; }
+  if (!COMMUNITIES.some(c => c.name.toLowerCase() === v.toLowerCase())){
+    COMMUNITIES.push({ name:v, group:'global', on:true, why:'added by you' });
+  }
+  S.subs.add(v);
+  $('#addSub').value = '';
+  renderPicker(); paintQueryLine();
+};
+$('#addSub').addEventListener('keydown', e => { if (e.key === 'Enter') $('#addBtn').click(); });
+
+document.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => {
+  S.sort = b.dataset.sort;
+  document.querySelectorAll('[data-sort]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  hunt();
+});
+document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+  S.t = b.dataset.t;
+  document.querySelectorAll('[data-t]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  hunt();
+});
+
+$('#galBtn').onclick = () => {                                                  // FR-6
+  S.galleries = !S.galleries;
+  $('#galBtn').setAttribute('aria-pressed', S.galleries);
+  hunt();
+};
+
+$('#markBtn').onclick = () => {                                                 // FR-13
+  S.markedOnly = !S.markedOnly;
+  $('#markBtn').setAttribute('aria-pressed', S.markedOnly);
+  paint();
+};
+
+/* ---- boot -------------------------------------------------------- */
+renderPresets();
+renderPicker();
+paintQueryLine();
+$('#markCount').textContent = S.marked.size;
+paint();
+
+(async () => {
+  try {
+    const r = await fetch(`${API}?ping=1`);
+    const j = await r.json();
+    if (!j.ok) throw 0;
+    S.live = true;
+    setStatus(`<b>live</b> · ${j.mode}`);
+  } catch {
+    S.live = false;
+    setStatus('<b>demo</b> · no backend');
+    banner(
+      `<div><strong>No backend detected.</strong> Reddit can't be read from a browser
+       (PRD §2.3), so search will fall back to a demo sheet. Start the API with
+       <code>node server.js</code> — the page is already pointed at it.</div>`
+    );
+  }
+})();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {           // FR-10
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
